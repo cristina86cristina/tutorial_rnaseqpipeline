@@ -24,6 +24,10 @@ source("scripts/rnaseq_pipeline.r")
 ##Get files from RSD
 1) Open Mobaxterm 
 
+2) Move into the directory you want:
+Instead of /home/cristina/Downloads/ you need to put the full path to the directory
+cd /home/cristina/Downloads/tutorial_rnaseqpipeline-master
+
 1) To add .txt extension to each file name run this command in mobaxterm: 
 sed -i -e 's/$/.txt/g' example_files.txt
 
@@ -41,7 +45,7 @@ Files will be downloaded into a new folder called files_fromrsd
 ##Create your own matrix 
 
 1) Each tpm file might have a different total number of genes due to different Ensembl reference used in the mapping process. We will extract genes that are present in all files. 
-You need to create a new folder for the files, let's call it "files_fromrsd_equal"
+You need to create a new folder for the files, let's call it "files_fromrsd_equal" (if you are feeling super confident with Mobaxterm, you can do in the terminal: mkdir files_fromrsd_equal )
 
 Run this to equalise the number 
 ```{r}

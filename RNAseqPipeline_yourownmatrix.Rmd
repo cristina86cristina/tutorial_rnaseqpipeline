@@ -1,0 +1,148 @@
+---
+title: "RNAseq pipeline - create your own gene matrix"
+output: html_notebook
+author: Cristina Venturini
+---
+
+This is a script and instruction to download RNAseq tpm files from the RDS server and create your own matrix. 
+You need: 
+
+- to install https://mobaxterm.mobatek.net/ if you are usinf Windows
+
+- to install Rstudio
+
+- a list of tpm files you are interested in: from the template, filter what you need and copy the file names into a .txt file (see example_files.txt)
+
+
+
+To start we call an external script with some useful functions we will use later
+```{r}
+source("scripts/rnaseq_pipeline.r")
+```
+
+
+##Get files from RSD
+1) Open Mobaxterm 
+
+1) To add .txt extension to each file name run this command in mobaxterm: 
+sed -i -e 's/$/.txt/g' example_files.txt
+
+2) To download files from RSD into your own computer, run this command in mobaxterm: 
+NB Replace <username> with your UCL username
+
+
+rsync -av --files-from=example_files.txt <username>@ssh.rd.ucl.ac.uk:/rd/live/ritd-ag-project-rd002u-mnour10/RNAseq/TPM_files/ files_fromrsd/
+
+You will be asked to type your UCL password
+
+Files will be downloaded into a new folder called files_fromrsd
+
+
+##Create your own matrix 
+
+1) Each tpm file might have a different total number of genes due to different Ensembl reference used in the mapping process. We will extract genes that are present in all files. 
+You need to create a new folder for the files, let's call it "files_fromrsd_equal"
+
+Run this to equalise the number 
+```{r}
+input= "files_fromrsd/" ##CHANGE HERE
+output = "files_fromrsd_equal/"  ##CHANGE HERE
+print("Did you remember to create the output directory?")
+Equaliser(input =input, output= output)
+```
+
+
+
+
+2) Let's put the files together in a matrix 
+```{r}
+
+#install.packages(c("dplyr", "tidyr","data.table"), dependencies = T)
+library(plyr)
+library(dplyr)
+library(tidyr)
+#require("tidyverse")
+library(data.table)
+
+paths <- dir("files_fromrsd_equal/", pattern = "\\.txt$", full.names = TRUE)
+names(paths) <- gsub("\\.txt", "", dir("files_fromrsd"))
+tpm_df <- ldply(paths, fread, stringsAsFactors = FALSE,header=FALSE) %>% spread(key=.id,value=V2) 
+row.names(tpm_df) <- tpm_df$V1
+tpm_df$V1 <- NULL
+head(tpm_df)
+```
+
+
+3) Expression values < or = to 0.001 are transformed into 0.001 to avoid problems with log2 transformation. We then log2 normalise all data.
+
+We write a .csv file with this data, change the file name as you like (here is example_tpm_log2_0.001.csv)
+
+
+```{r}
+tpm_df[tpm_df <= 0.001] <- 0.001
+tpmlog <- log2(tpm_df)
+tpmlog$ensembl_gene_id <- row.names(tpmlog)
+tpmlog <- tpmlog %>% select(ensembl_gene_id,everything()) ##make sure biomart is not loaded, it creates problems with dplyr
+write.csv(tpmlog,"example_tpm_log2_0.001.csv",quote=FALSE,row.names = FALSE) ##CHANGE HERE the output file name
+```
+
+
+4) We can annotate the Ensembl gene ID to gene names 
+fileName is the .csv file we saved above (example_tpm_log2_0.001.csv)
+If needed you can change the species for annotation: hsapiens_gene_ensembl is human 
+This command will save another csv file called Annotatedexample_tpm_log2_0.001.csv
+```{r}
+## try http:// if https:// URLs are not supported
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("biomaRt")
+library(biomaRt) #important to load it after
+fileName <- "example_tpm_log2_0.001.csv"
+annotation("hsapiens_gene_ensembl",fileName)
+```
+5) We have duplicated gene names due to alternative sequences and error in the reference assembly. 
+We can deduplicate the file, taking the gene with the highest mean and getting rid of all duplicates. 
+```{r}
+detach("package:biomaRt", unload=TRUE)
+dedup_genesymbol("Annotatedexample_tpm_log2_0.001.csv","Annotated_example_tpm_log2_0.001_dedup.csv")
+```
+
+
+6) We can create a density plot of our data to help us identify outlier
+Two options:
+- simple plot
+- interactive plot 
+
+For the simple plot run: 
+```{r}
+##SIMPLE PLOT
+##install.packages("ggplot2","reshape")
+library(ggplot2)
+library(reshape)
+data_melted <- melt(tpmlog)
+p <- ggplot(data_melted,aes(x=value, col= variable)) + geom_density() + theme_bw() + theme(legend.position = "None")
+plot(p)
+
+##if you want to save the plot in a pdf file - uncomment the following
+#pdf("density_plot.pdf")
+#plot(p)
+#dev.off()
+```
+
+
+
+
+```{r}
+##INTERACTIVE PLOT 
+#install.packages("plotly")
+#for for dev version
+#devtools::install_github("ropensci/plotly")
+
+library(plotly)
+data_melted <- melt(tpmlog)
+p <- ggplot(data_melted,aes(x=value, col= variable)) + geom_density() + theme_bw() + theme(legend.position = "None")
+ggplotly(p)
+```
+
+
+
+

@@ -1,4 +1,4 @@
-# tutorial_rnaseqpipeline
+# Tutorial RNAseq pipeline
 This pipeline has been created to manage RNAseq files within the Noursadeghi's lab. 
 This is a tutorial to download your data from our RSD server and start your own RNAseq analysis! 
 It's divided in two main steps:
